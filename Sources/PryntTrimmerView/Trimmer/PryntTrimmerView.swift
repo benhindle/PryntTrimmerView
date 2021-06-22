@@ -9,7 +9,7 @@
 import AVFoundation
 import UIKit
 
-public protocol TrimmerViewDelegate: class {
+public protocol TrimmerViewDelegate: AnyObject {
     func didChangePositionBar(_ playerTime: CMTime)
     func positionBarStoppedMoving(_ playerTime: CMTime)
 }
@@ -68,6 +68,8 @@ public protocol TrimmerViewDelegate: class {
     private let rightHandleKnob = UIView()
     private let leftMaskView = UIView()
     private let rightMaskView = UIView()
+    private var leftHandleOriginalPosition: CGFloat?
+    private var rightHandleOriginalPosition: CGFloat?
 
     // MARK: Constraints
 
@@ -76,6 +78,7 @@ public protocol TrimmerViewDelegate: class {
     private var leftConstraint: NSLayoutConstraint?
     private var rightConstraint: NSLayoutConstraint?
     private var positionConstraint: NSLayoutConstraint?
+    private var previousFrameWidth: CGFloat?
 
     private let handleWidth: CGFloat = 15
 
@@ -97,6 +100,7 @@ public protocol TrimmerViewDelegate: class {
         setupGestures()
         updateMainColor()
         updateHandleColor()
+        previousFrameWidth = frame.width
     }
 
     override func constrainAssetPreview() {
@@ -239,8 +243,10 @@ public protocol TrimmerViewDelegate: class {
             let translation = gestureRecognizer.translation(in: superView)
             if isLeftGesture {
                 updateLeftConstraint(with: translation)
+                print(leftConstraint!.constant)
             } else {
                 updateRightConstraint(with: translation)
+                print(rightConstraint!.constant)
             }
             layoutIfNeeded()
             if let startTime = startTime, isLeftGesture {
@@ -260,13 +266,43 @@ public protocol TrimmerViewDelegate: class {
         let maxConstraint = max(rightHandleView.frame.origin.x - handleWidth - minimumDistanceBetweenHandle, 0)
         let newConstraint = min(max(0, currentLeftConstraint + translation.x), maxConstraint)
         leftConstraint?.constant = newConstraint
+        print("leftConstraint?.constant \(leftConstraint!.constant)")
     }
 
     private func updateRightConstraint(with translation: CGPoint) {
         let maxConstraint = min(2 * handleWidth - frame.width + leftHandleView.frame.origin.x + minimumDistanceBetweenHandle, 0)
         let newConstraint = max(min(0, currentRightConstraint + translation.x), maxConstraint)
         rightConstraint?.constant = newConstraint
+        print("rightConstraint?.constant \(rightConstraint!.constant)")
     }
+    
+        
+//    private func updateLeftConstraintForTransition(with translation: CGPoint) {
+//
+//        rightHandleView.frame.origin.x = ((rightHandleOriginalPosition! + (2 * handleWidth)) / previousFrameWidth!) * frame.width - handleWidth
+//        let maxConstraint = max(rightHandleView.frame.origin.x - handleWidth - minimumDistanceBetweenHandle, 0)
+//        let newConstraint = min(max(0, currentLeftConstraint * (frame.width / previousFrameWidth!) + translation.x), maxConstraint).rounded(.down)
+//
+//        leftConstraint?.constant = newConstraint
+//        leftHandleView.frame.origin.x = newConstraint
+//    }
+    
+    
+//    public func setTrimmerHandleOrigin(startTime start: CMTime, endTime end: CMTime) {
+//        leftHandleOriginalPosition = getPosition(from: start)
+//        rightHandleOriginalPosition = getPosition(from: end)
+//    }
+    
+    
+//    private func updateRightConstraintForTransition(with translation: CGPoint) {
+//
+//        leftHandleView.frame.origin.x = (leftHandleOriginalPosition! / previousFrameWidth!) * frame.width
+//
+//        let maxConstraint = CGFloat(floor(Double(( min((2 * handleWidth) + leftHandleView.frame.origin.x + minimumDistanceBetweenHandle - frame.width, 0) ))))
+//        let newConstraint = max(min(0, (currentRightConstraint * (previousFrameWidth! / frame.width)) + translation.x), maxConstraint).rounded(.down)
+//
+//        rightConstraint?.constant = newConstraint
+//    }
 
     // MARK: - Asset loading
 
@@ -286,7 +322,6 @@ public protocol TrimmerViewDelegate: class {
     /// Move the position bar to the given time.
     public func seek(to time: CMTime) {
         if let newPosition = getPosition(from: time) {
-
             let offsetPosition = newPosition - assetPreview.contentOffset.x - leftHandleView.frame.origin.x
             let maxPosition = rightHandleView.frame.origin.x - (leftHandleView.frame.origin.x + handleWidth)
                               - positionBar.frame.width
@@ -295,6 +330,76 @@ public protocol TrimmerViewDelegate: class {
             layoutIfNeeded()
         }
     }
+  
+    
+    
+    
+//    public func getPositionRatio(at time: CMTime) -> CGFloat? {
+//        let position = getPosition(from: time)!
+//        return position  / durationSize
+//
+//    }
+    
+//    public func seekToPosition(at currentTime: CMTime) {
+//        let newPosition = getPosition(from: currentTime)!
+//        let offsetPosition = newPosition - assetPreview.contentOffset.x - leftHandleView.frame.origin.x
+//        let maxPosition = rightHandleView.frame.origin.x - (leftHandleView.frame.origin.x + handleWidth)
+//                          - positionBar.frame.width
+//        let normalizedPosition = min(max(0, offsetPosition), maxPosition)
+//        positionConstraint?.constant = normalizedPosition
+//        layoutIfNeeded()
+//    }
+    
+    
+//    // Move left handle to specified time point
+//    public func moveLeftHandle(to time: CMTime) {
+//        if let updatedPosition = getPosition(from: time) {
+//            updateLeftConstraintForTransition(
+//                with: CGPoint(
+//                    x: updatedPosition - (currentLeftConstraint * (frame.width / previousFrameWidth!)),
+//                    y: 0)
+//            )
+//        }
+//    }
+//
+//
+//    // Move right handle to specified time point
+//    public func moveRightHandle(to time: CMTime) {
+//
+//        if let updatedPosition = getPosition(from: time) {
+//            updateRightConstraintForTransition(
+//                with: CGPoint(
+//                    x: updatedPosition - frame.width - (currentRightConstraint * (frame.width / previousFrameWidth!)) + (2 * handleWidth),
+//                    y: 0)
+//            )
+//        }
+//    }
+    
+    /// Move the left trimmer handle to the given time.
+     public func moveLeftHandle(to time: CMTime) {
+         if let newPosition = getPosition(from: time) {
+             updateLeftConstraint(with: CGPoint(x: newPosition - currentLeftConstraint, y: 0))
+             updateSelectedTime(stoppedMoving: false)
+         }
+     }
+
+     /// Move the right trimmer handle to the given time.
+     public func moveRightHandle(to time: CMTime) {
+         if let newPosition = getPosition(from: time) {
+             updateRightConstraint(with: CGPoint(x: newPosition - frame.width - currentRightConstraint + 2 * handleWidth, y: 0))
+             updateSelectedTime(stoppedMoving: false)
+         }
+     }
+    
+//    public func updatePreviousFrameWidth() {
+//        previousFrameWidth = frame.width
+//    }
+    
+    
+    // Move scroll view to ****
+    
+    
+    
 
     /// The selected start time for the current asset.
     public var startTime: CMTime? {
